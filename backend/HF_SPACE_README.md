@@ -24,8 +24,8 @@ FastAPI service powering [NeuroPulse](https://github.com/84yk8btb9f-prog/neurole
 ## Stack
 
 - Python 3.11 + FastAPI + Uvicorn
-- CLIP ViT-B/32 (HuggingFace transformers) for brain region scoring
-- Whisper (CPU) for video transcription
+- CLIP ViT-L/14 (HuggingFace transformers) for brain region scoring
+- Whisper base (CPU) for video transcription
 - yt-dlp for video URL downloads
 - SQLite for project + persona storage
 
@@ -34,6 +34,7 @@ FastAPI service powering [NeuroPulse](https://github.com/84yk8btb9f-prog/neurole
 | Var | Purpose |
 |---|---|
 | `ALLOWED_ORIGINS` | Comma-separated list of allowed CORS origins (e.g. `https://neurolens.vercel.app`) |
+| `HF_TOKEN` | HF read/write token — required for the persona generator (LLM extraction via Inference API). Get one at https://huggingface.co/settings/tokens |
 
 ## Deploy your own
 

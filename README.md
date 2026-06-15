@@ -90,7 +90,7 @@ Per-region probes live in `backend/app/clip_scorer.py` and are easy to tune. Per
 
 ## Stack
 
-- **Backend:** Python 3.11 · FastAPI · CLIP ViT-B/32 (HF transformers) · Whisper · yt-dlp · SQLite
+- **Backend:** Python 3.11 · FastAPI · CLIP ViT-L/14 (HF transformers) · Whisper base · yt-dlp · SQLite
 - **Frontend:** Next.js App Router · shadcn/ui · Recharts · Tailwind
 - **Storage:** Local SQLite (no Postgres, no cloud)
 
