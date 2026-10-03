@@ -56,8 +56,10 @@ export const saveProject = (name: string, result: AnalysisResult): Promise<{ id:
 export const getProject = (id: number): Promise<Project> =>
   json_get(`/projects/${id}`) as Promise<Project>;
 
-export const deleteProject = (id: number): Promise<void> =>
-  fetch(`${BASE}/projects/${id}`, { method: "DELETE" }).then(() => undefined);
+export const deleteProject = async (id: number): Promise<void> => {
+  const res = await fetch(`${BASE}/projects/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+};
 
 async function json_put(path: string, body: unknown): Promise<unknown> {
   const res = await fetch(`${BASE}${path}`, {

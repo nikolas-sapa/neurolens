@@ -8,11 +8,11 @@ Drop in any ad — video, image, or copy. See how the brain reacts before you sp
 
 NeuroPulse is an open-source brain-response analysis tool for marketing content. It scores creative across 8 brain regions, gives you actionable recommendations, and lets you analyze content through the lens of well-known direct-response creators.
 
-CPU-only. No GPU. Free and open source — self-host for full privacy (no third-party calls).
+CPU-only. No GPU. Free and open source — self-host to keep local-file and text scoring on your server. Model downloads, URL inputs, and optional persona generation contact external services.
 
 ## Quick start (local)
 
-Requires: Python 3.11+, Node.js 18+, ffmpeg (`brew install ffmpeg`).
+Requires: Python 3.11+, Node.js 20.9+, ffmpeg (`brew install ffmpeg`).
 
 ```bash
 git clone https://github.com/nikolas-sapa/neurolens
@@ -24,7 +24,7 @@ Open http://localhost:3000. First run downloads ~600 MB of model weights (cached
 
 ## What it does
 
-- Score any image, video, YouTube/TikTok/Instagram URL, PDF, or text across 8 brain regions
+- Score any image, video, supported YouTube/TikTok/Instagram video URL, PDF, or text across 8 brain regions
 - Get a single-line verdict that tells you the weakest spot up front (e.g. *"Forgettable — this won't stick in memory five minutes after viewing"*)
 - See per-region breakdowns and concrete recommendations
 - Compare two pieces of content side-by-side
@@ -32,15 +32,17 @@ Open http://localhost:3000. First run downloads ~600 MB of model weights (cached
 - **Generate personas from content** — paste book excerpts, transcripts, tweet threads, or NotebookLM exports and have an LLM extract the creator's tactical playbook into the 8 brain-region structure
 - Save analyses as named projects, share read-only links
 
+Remote inputs accept HTTPS links to individual YouTube videos, TikTok video pages, and Instagram posts/reels. Playlist, channel, redirect and unrelated URLs are rejected. Short TikTok redirect links can be uploaded as local video files instead.
+
 ## What it isn't
 
-- Not a peer-reviewed neuroscience instrument. Scores are derived from CLIP ViT-B/32 cosine similarity against neuroscience-informed probe texts. Treat the output as a creative review heuristic, not a clinical signal.
+- Not a peer-reviewed neuroscience instrument. Scores are derived from CLIP ViT-L/14 cosine similarity against neuroscience-informed probe texts. Treat the output as a creative review heuristic, not a clinical signal.
 - Not a substitute for real performance data. If you have ROAS / CTR / conversion data, use it.
 - No multi-user auth or billing — open source, run it yourself.
 
 ## What is NeuroPulse
 
-**NeuroPulse is an open-source ad creative analysis tool that scores any image, video, or copy across 8 brain regions and tells you the single weakest spot before you spend money promoting it.** It runs on CPU, needs no GPU, and self-hosts for full privacy.
+**NeuroPulse is an open-source ad creative analysis tool that scores any image, video, or copy across 8 brain regions and tells you the single weakest spot before you spend money promoting it.** It runs on CPU, needs no GPU, and self-hosts so you control local analysis data.
 
 ### Why NeuroPulse
 
@@ -75,7 +77,7 @@ No. Scores come from CLIP ViT-L/14 cosine similarity against neuroscience-inform
 No. CPU-only. First run downloads ~600 MB of model weights, cached after that.
 
 **Can I run it fully private?**
-Yes. Self-host the Docker backend and Next.js frontend — no third-party calls.
+Local-file and text scoring run on your server. Downloading model weights and analyzing remote URLs contact external services. The optional persona generator sends source text to Hugging Face; omit `HF_TOKEN` to keep that feature disabled.
 
 **What can it analyze?**
 Images, video, YouTube/TikTok/Instagram URLs, PDFs, and raw text. Whisper transcribes video audio so spoken copy feeds the language and persuasion regions.

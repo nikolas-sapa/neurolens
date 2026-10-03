@@ -46,8 +46,13 @@ export default function ProjectsPage() {
 
   async function handleDelete(id: number, e: React.MouseEvent) {
     e.stopPropagation();
-    await deleteProject(id);
-    setProjects((p) => p.filter((x) => x.id !== id));
+    setError(null);
+    try {
+      await deleteProject(id);
+      setProjects((p) => p.filter((x) => x.id !== id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete project");
+    }
   }
 
   return (

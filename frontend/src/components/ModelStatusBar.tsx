@@ -30,19 +30,24 @@ function ModelBadge({ loadedLabel, unloadedLabel, icon, statusEndpoint, unloadEn
     try {
       const res = await fetch(`${BASE}${statusEndpoint}`);
       if (res.ok) {
-        setStatus(await res.json());
-      } else {
-        setStatus(null);
+        return await res.json() as StatusData;
       }
     } catch {
       // backend not running
     }
+    return null;
   }, [statusEndpoint]);
 
   useEffect(() => {
-    fetchStatus();
-    const id = setInterval(fetchStatus, 30_000);
-    return () => clearInterval(id);
+    let active = true;
+    const refresh = () => {
+      fetchStatus().then((nextStatus) => {
+        if (active) setStatus(nextStatus);
+      });
+    };
+    refresh();
+    const id = setInterval(refresh, 30_000);
+    return () => { active = false; clearInterval(id); };
   }, [fetchStatus]);
 
   async function handleUnload() {
@@ -52,7 +57,7 @@ function ModelBadge({ loadedLabel, unloadedLabel, icon, statusEndpoint, unloadEn
     try {
       const res = await fetch(`${BASE}${unloadEndpoint}`, { method: "POST" });
       if (res.ok) {
-        await fetchStatus();
+        setStatus(await fetchStatus());
       } else {
         console.error("Unload failed:", res.status);
       }

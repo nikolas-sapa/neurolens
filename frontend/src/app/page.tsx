@@ -146,7 +146,7 @@ export default function Home() {
             {trying ? "Analyzing sample…" : "Try a sample ad copy"}
           </Button>
           <p className="mt-8 text-xs text-muted-foreground">
-            Free and open source — self-host for full privacy.
+            Self-hosted analysis. Downloads, URLs and persona generation use external services.
           </p>
         </TabsContent>
 

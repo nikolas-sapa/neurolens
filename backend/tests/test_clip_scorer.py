@@ -58,7 +58,8 @@ def test_score_inputs_requires_at_least_one(monkeypatch):  # CLAUDE_SECRET_ALLOW
 
 
 def test_score_inputs_averages_over_inputs(monkeypatch):  # CLAUDE_SECRET_ALLOW
-    fake = clip_scorer.CLIPScorer.__new__(clip_scorer.CLIPScorer)
+    fake = clip_scorer.CLIPScorer()
+    monkeypatch.setattr(fake, "load", lambda: None)
     fake.score_image = lambda img: {k: 80 for k in REGION_PROBES}
     fake.score_text = lambda t: {k: 40 for k in REGION_PROBES}
     monkeypatch.setattr(clip_scorer, "_scorer", fake)
@@ -68,7 +69,8 @@ def test_score_inputs_averages_over_inputs(monkeypatch):  # CLAUDE_SECRET_ALLOW
 
 
 def test_score_inputs_skips_blank_text(monkeypatch):  # CLAUDE_SECRET_ALLOW
-    fake = clip_scorer.CLIPScorer.__new__(clip_scorer.CLIPScorer)
+    fake = clip_scorer.CLIPScorer()
+    monkeypatch.setattr(fake, "load", lambda: None)
     fake.score_image = lambda img: {k: 70 for k in REGION_PROBES}
     fake.score_text = lambda t: {k: 30 for k in REGION_PROBES}
     monkeypatch.setattr(clip_scorer, "_scorer", fake)
