@@ -11,6 +11,7 @@ def _make_png(path: str):
     return path
 
 
+@pytest.mark.model_integration
 def test_process_image_has_all_region_keys(tmp_path):
     from app.processors.image_processor import process_image
     p = _make_png(str(tmp_path / "t.png"))
@@ -32,6 +33,7 @@ def test_chunk_text_keeps_short_input_as_one():
     assert len(chunk_text("Buy now, limited time only!")) == 1
 
 
+@pytest.mark.model_integration
 def test_process_text_has_scores():
     from app.processors.text_processor import process_text
     out = process_text("This product will transform your life.")
@@ -39,6 +41,7 @@ def test_process_text_has_scores():
     assert all(0 <= v <= 100 for v in out["scores"].values())
 
 
+@pytest.mark.model_integration
 def test_process_pdf_extracts_and_scores(tmp_path):
     from app.processors.pdf_processor import process_pdf
     mock_page = mock.MagicMock()
@@ -70,6 +73,7 @@ def test_extract_frames_produces_pil_images():
     assert all(isinstance(f, PILImage.Image) for f in frames)
 
 
+@pytest.mark.model_integration
 def test_process_video_merges_visual_and_audio():
     from app.processors.video_processor import process_video
     with mock.patch("app.processors.video_processor.extract_frames") as ef, \
@@ -127,7 +131,7 @@ def test_download_youtube_falls_back_through_clients(tmp_path):
 
     import os
     with mock.patch("app.processors.youtube_processor.yt_dlp.YoutubeDL", FakeYDL):
-        result = download_youtube("https://youtube.com/watch?v=abc", str(tmp_path))
+        result = download_youtube("https://youtube.com/watch?v=abcdefghijk", str(tmp_path))
     assert result["title"] == "Video"
     assert FakeYDL.instances == 3  # cycled through ios + android, succeeded on web_safari
 
@@ -147,7 +151,7 @@ def test_download_youtube_raises_blocked_when_all_clients_fail(tmp_path):
 
     with mock.patch("app.processors.youtube_processor.yt_dlp.YoutubeDL", AlwaysFails):
         with pytest.raises(YouTubeBlockedError, match="blocked every download"):
-            download_youtube("https://youtube.com/watch?v=abc", str(tmp_path))
+            download_youtube("https://youtube.com/watch?v=abcdefghijk", str(tmp_path))
 
 
 def test_process_video_uses_clip_scores(tmp_path):

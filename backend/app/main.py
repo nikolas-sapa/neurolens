@@ -17,6 +17,7 @@ from app.storage import get_storage
 from app.persona_storage import get_persona_storage
 from app.headline import generate_headline
 from app.persona_generator import generate_persona, PersonaGeneratorError
+from app.processors.youtube_processor import InvalidVideoURLError
 
 app = FastAPI(title="NeuroPulse API", version="1.0.0")
 
@@ -80,16 +81,14 @@ async def analyze(
     except HTTPException:
         raise
     except Exception as exc:
-        import logging, traceback
+        import logging
         from app.processors.youtube_processor import YouTubeBlockedError
         logging.getLogger(__name__).exception("Analyze failed")
+        if isinstance(exc, InvalidVideoURLError):
+            raise HTTPException(status_code=422, detail=str(exc))
         if isinstance(exc, YouTubeBlockedError):
             raise HTTPException(status_code=502, detail=str(exc))
-        detail = f"{type(exc).__name__}: {exc}"
-        tb = traceback.format_exc().splitlines()
-        if len(tb) > 6:
-            detail += " | …" + " | ".join(tb[-4:])
-        raise HTTPException(status_code=500, detail=detail)
+        raise HTTPException(status_code=500, detail="Analysis failed. Check server logs for details.")
 
 
 @app.post("/compare")
@@ -123,6 +122,8 @@ async def compare(
             rb = await loop.run_in_executor(
                 None, functools.partial(route_content, file_path=pb, youtube_url=youtube_url_b, text_content=text_b, tmp_dir=tmp)
             )
+        except InvalidVideoURLError as e:
+            raise HTTPException(status_code=422, detail=str(e))
         except LowMemoryError as e:
             raise HTTPException(status_code=503, detail=str(e))
     return {"a": _enrich(ra), "b": _enrich(rb)}

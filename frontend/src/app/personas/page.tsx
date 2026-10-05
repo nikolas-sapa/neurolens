@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Plus, Pencil, Trash2, Users, Sparkles, Loader2, X } from "lucide-react";
 import { listPersonas, getPersona, createPersona, updatePersona, deletePersona, generatePersona } from "@/lib/api";
-import type { PersonaSummary, PersonaDetail } from "@/types/analysis";
+import type { PersonaSummary } from "@/types/analysis";
 
 const REGIONS = [
   { key: "visual_cortex", label: "Visual Cortex" },

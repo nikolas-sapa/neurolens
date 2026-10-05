@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { BrainRadarChart } from "@/components/BrainRadarChart";
 import { RegionCard } from "@/components/RegionCard";
@@ -11,15 +11,50 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, BarChart2, FolderOpen } from "lucide-react";
 import type { AnalysisResult, BrainScores } from "@/types/analysis";
 
+function subscribeToStorage(callback: () => void) {
+  window.addEventListener("storage", callback);
+  return () => window.removeEventListener("storage", callback);
+}
+
+function readStoredResult() {
+  try { return sessionStorage.getItem("np_result"); }
+  catch { return null; }
+}
+
+const SCORE_KEYS: (keyof BrainScores)[] = [
+  "visual_cortex", "face_social", "amygdala", "hippocampus",
+  "language_areas", "reward_circuit", "prefrontal", "motor_action",
+];
+
+function parseStoredResult(raw: string | null | undefined): AnalysisResult | null {
+  if (!raw) return null;
+  try {
+    const value = JSON.parse(raw) as AnalysisResult;
+    if (!value || typeof value !== "object" || !value.scores ||
+      Object.keys(value.scores).length !== SCORE_KEYS.length ||
+      !SCORE_KEYS.every((key) => typeof value.scores[key] === "number" && Number.isFinite(value.scores[key])) ||
+      !["image", "video", "youtube", "pdf", "text"].includes(value.type) ||
+      (value.headline !== undefined && typeof value.headline !== "string") ||
+      !Array.isArray(value.recommendations) ||
+      !value.recommendations.every((r) => r && SCORE_KEYS.includes(r.region_key) &&
+        ["high", "medium", "ok"].includes(r.priority) &&
+        typeof r.region_name === "string" && typeof r.score === "number" &&
+        typeof r.message === "string" && typeof r.details === "string" &&
+        Array.isArray(r.steps) && r.steps.every((step) => typeof step === "string"))) return null;
+    return value;
+  } catch { return null; }
+}
+
 export default function AnalysisPage() {
   const router = useRouter();
-  const [result, setResult] = useState<AnalysisResult | null>(null);
+  const raw = useSyncExternalStore(subscribeToStorage, readStoredResult, () => undefined);
+  const result = useMemo(() => parseStoredResult(raw), [raw]);
 
   useEffect(() => {
-    const raw = sessionStorage.getItem("np_result");
-    if (!raw) { router.push("/"); return; }
-    setResult(JSON.parse(raw));
-  }, [router]);
+    if (raw === undefined || result) return;
+    try { sessionStorage.removeItem("np_result"); } catch { /* storage unavailable */ }
+    router.replace("/");
+  }, [raw, result, router]);
 
   if (!result) return null;
 

@@ -1,19 +1,25 @@
 """CLIP-based brain region scoring.
 
 Replaces the Apple-Silicon-only mlx-vlm Qwen2-VL scorer with a portable CLIP
-ViT-B/32 backbone. Each brain region has a small set of probe texts; the score
+ViT-L/14 backbone. Each brain region has a small set of probe texts; the score
 is the cosine similarity between the input embedding and the best-matching
 probe, linearly mapped from a calibrated reference range to 0-100.
 """
 from __future__ import annotations
 
 import logging
+import threading
+import time
 from typing import Iterable, Sequence
 
 import numpy as np
 from PIL import Image
 
 _log = logging.getLogger(__name__)
+
+# One model lifecycle: initialization, inference, eviction and activity are atomic.
+_lifecycle_lock = threading.RLock()
+_last_used: float = 0.0
 
 CLIP_MODEL_ID = "openai/clip-vit-large-patch14"
 
@@ -110,34 +116,46 @@ class CLIPScorer:
         self._probe_features: np.ndarray | None = None  # (n_probes, dim)
 
     def load(self) -> None:
-        if self._model is not None:
-            return
-        import torch
-        from transformers import CLIPModel, CLIPProcessor
+        global _last_used
+        with _lifecycle_lock:
+            if self._model is not None:
+                return
+            import torch
+            from transformers import CLIPModel, CLIPProcessor
 
-        _log.info("Loading CLIP %s", self._model_id)
-        self._model = CLIPModel.from_pretrained(self._model_id)
-        self._model.eval()
-        self._processor = CLIPProcessor.from_pretrained(self._model_id)
+            _log.info("Loading CLIP %s", self._model_id)
+            model = CLIPModel.from_pretrained(self._model_id)
+            model.eval()
+            processor = CLIPProcessor.from_pretrained(self._model_id)
 
-        with torch.no_grad():
-            inputs = self._processor(text=_FLAT_PROBES, return_tensors="pt", padding=True)
-            features = self._encode_text(inputs)
-            self._probe_features = features.cpu().numpy()
+            with torch.no_grad():
+                inputs = processor(text=_FLAT_PROBES, return_tensors="pt", padding=True)
+                text_outputs = model.text_model(**inputs)
+                features = model.text_projection(text_outputs[1])
+                features = features / features.norm(dim=-1, keepdim=True)
+                probe_features = features.cpu().numpy()
+
+            # Failed initialization never leaves a partially loaded singleton.
+            self._processor = processor
+            self._probe_features = probe_features
+            self._model = model
+            _last_used = time.monotonic()
 
     def unload(self) -> bool:
-        if self._model is None:
-            return False
-        self._model = None
-        self._processor = None
-        self._probe_features = None
-        import gc
-        gc.collect()
-        return True
+        with _lifecycle_lock:
+            if self._model is None:
+                return False
+            self._model = None
+            self._processor = None
+            self._probe_features = None
+            import gc
+            gc.collect()
+            return True
 
     @property
     def loaded(self) -> bool:
-        return self._model is not None
+        with _lifecycle_lock:
+            return self._model is not None
 
     def _encode_text(self, inputs):
         """Manual text projection — bypasses broken get_text_features in some
@@ -186,16 +204,26 @@ class CLIPScorer:
         return {region: _normalize(sim, low, high) for region, sim in per_region.items()}
 
     def score_image(self, image: Image.Image) -> dict[str, int]:
-        self.load()
-        return self._score_from_embedding(
-            self._embed_image(image), _IMAGE_SIM_LOW, _IMAGE_SIM_HIGH
-        )
+        global _last_used
+        with _lifecycle_lock:
+            self.load()
+            try:
+                return self._score_from_embedding(
+                    self._embed_image(image), _IMAGE_SIM_LOW, _IMAGE_SIM_HIGH
+                )
+            finally:
+                _last_used = time.monotonic()
 
     def score_text(self, text: str) -> dict[str, int]:
-        self.load()
-        return self._score_from_embedding(
-            self._embed_text(text), _TEXT_SIM_LOW, _TEXT_SIM_HIGH
-        )
+        global _last_used
+        with _lifecycle_lock:
+            self.load()
+            try:
+                return self._score_from_embedding(
+                    self._embed_text(text), _TEXT_SIM_LOW, _TEXT_SIM_HIGH
+                )
+            finally:
+                _last_used = time.monotonic()
 
 
 _scorer: CLIPScorer | None = None
@@ -203,9 +231,10 @@ _scorer: CLIPScorer | None = None
 
 def get_scorer() -> CLIPScorer:
     global _scorer
-    if _scorer is None:
-        _scorer = CLIPScorer()
-    return _scorer
+    with _lifecycle_lock:
+        if _scorer is None:
+            _scorer = CLIPScorer()
+        return _scorer
 
 
 def score_inputs(
@@ -218,7 +247,10 @@ def score_inputs(
     if not images and not texts:
         raise ValueError("score_inputs requires at least one image or text input")
 
-    scorer = get_scorer()
+    # Runtime import avoids the manager/scorer import cycle.
+    from app.model_manager import get_manager
+
+    scorer, _ = get_manager().get()
     region_keys = list(REGION_PROBES.keys())
     accum: dict[str, list[int]] = {k: [] for k in region_keys}
 

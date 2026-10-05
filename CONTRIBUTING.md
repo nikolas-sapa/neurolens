@@ -86,3 +86,8 @@ No manual download step — CLIP (ViT-L/14) and Whisper (base) weights are fetch
 ## Reporting bugs / requesting features
 
 Use the issue templates under `.github/ISSUE_TEMPLATE/`. For security issues, see `SECURITY.md` instead of opening a public issue.
+
+Default backend tests use local fixtures. Four real-model integration tests skip unless
+you explicitly pass `pytest tests/ --run-models`. That option requires Torch/Transformers
+and may download CLIP weights. URL and persona-generator tests mock external services;
+no live inference credentials are required for default tests.

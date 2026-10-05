@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Upload, Link, FileText, Loader2, X } from "lucide-react";
@@ -27,8 +27,6 @@ export function ContentUploader({ onResult, onError, label, persona }: Props) {
   const [dragging, setDragging] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const abortRef = useRef<AbortController | null>(null);
-  const personaRef = useRef(persona);
-  personaRef.current = persona;
 
   const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -39,27 +37,31 @@ export function ContentUploader({ onResult, onError, label, persona }: Props) {
 
   function cancel() {
     abortRef.current?.abort();
+    abortRef.current = null;
     clearTimers();
     setLoading(false);
   }
 
   useEffect(() => () => {
     abortRef.current?.abort();
+    abortRef.current = null;
     timerRef.current.forEach(clearTimeout);
   }, []);
 
   async function submit(form: FormData) {
-    const currentPersona = personaRef.current;
-    if (currentPersona && currentPersona !== "default") {
-      form.append("persona", currentPersona);
+    if (persona && persona !== "default") {
+      form.append("persona", persona);
     }
+    abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
     setLoading(true);
     setLoadingLabel(STAGES[0].label);
     clearTimers();
     STAGES.slice(1).forEach(({ after, label: lbl }) => {
-      timerRef.current.push(setTimeout(() => setLoadingLabel(lbl), after * 1000));
+      timerRef.current.push(setTimeout(() => {
+        if (abortRef.current === controller) setLoadingLabel(lbl);
+      }, after * 1000));
     });
     try {
       const res = await fetch(`${BASE}/analyze`, { method: "POST", body: form, signal: controller.signal });
@@ -69,20 +71,24 @@ export function ContentUploader({ onResult, onError, label, persona }: Props) {
         try { detail = JSON.parse(body).detail ?? body; } catch { /* not JSON */ }
         throw new Error(res.status === 503 ? `Not enough RAM — ${detail}` : detail);
       }
-      onResult(await res.json());
+      const result = await res.json();
+      if (abortRef.current === controller) onResult(result);
     } catch (e) {
+      if (abortRef.current !== controller) return;
       if (e instanceof DOMException && e.name === "AbortError") return;
       onError(e instanceof Error ? e.message : "Cannot reach the analysis server. Make sure the backend is running.");
     } finally {
-      clearTimers();
-      setLoading(false);
-      abortRef.current = null;
+      if (abortRef.current === controller) {
+        clearTimers();
+        setLoading(false);
+        abortRef.current = null;
+      }
     }
   }
 
-  const handleFile = useCallback((file: File) => {
+  function handleFile(file: File) {
     const f = new FormData(); f.append("file", file); submit(f);
-  }, []); // submit reads personaRef.current — always current value, no stale closure
+  }
 
   return (
     <div className="w-full max-w-xl">

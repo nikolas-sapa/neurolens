@@ -1,5 +1,7 @@
 import logging
 import os
+import re
+from urllib.parse import parse_qs, urlsplit
 import yt_dlp
 
 from app.processors.video_processor import process_video
@@ -16,6 +18,36 @@ class YouTubeBlockedError(RuntimeError):
     """Raised when every player-client fallback failed to download."""
 
 
+class InvalidVideoURLError(ValueError):
+    """A URL outside the supported single-video platforms."""
+
+
+def validate_video_url(url: str) -> None:
+    error = "Provide a supported video URL from YouTube, TikTok, or Instagram."
+    if not isinstance(url, str) or any(ord(c) <= 32 for c in url):
+        raise InvalidVideoURLError(error)
+    try:
+        parsed = urlsplit(url)
+        if parsed.scheme != "https" or parsed.username is not None or parsed.password is not None or parsed.port not in (None, 443):
+            raise InvalidVideoURLError(error)
+        host = parsed.hostname
+        path = parsed.path
+        valid = False
+        if host in {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"}:
+            ids = parse_qs(parsed.query).get("v", [])
+            valid = (path == "/watch" and len(ids) == 1 and re.fullmatch(r"[A-Za-z0-9_-]{11}", ids[0])) or re.fullmatch(r"/(?:shorts|embed|live)/[A-Za-z0-9_-]{11}/?", path)
+        elif host == "youtu.be":
+            valid = re.fullmatch(r"/[A-Za-z0-9_-]{11}/?", path)
+        elif host in {"tiktok.com", "www.tiktok.com", "m.tiktok.com"}:
+            valid = re.fullmatch(r"/@[A-Za-z0-9_.]+/video/[0-9]+/?", path)
+        elif host in {"instagram.com", "www.instagram.com"}:
+            valid = re.fullmatch(r"/(?:p|reel|tv)/[A-Za-z0-9_-]+/?", path)
+        if not valid:
+            raise InvalidVideoURLError(error)
+    except ValueError as exc:
+        raise InvalidVideoURLError(error) from exc
+
+
 def _opts_for(client: str, tmp_dir: str) -> dict:
     return {
         "format": "bestvideo[height<=480]+bestaudio/best[height<=480]",
@@ -25,10 +57,13 @@ def _opts_for(client: str, tmp_dir: str) -> dict:
         "no_warnings": True,
         "extractor_args": {"youtube": {"player_client": [client]}},
         "socket_timeout": 30,
+        "noplaylist": True,
+        "allowed_extractors": ["youtube$", "tiktok$", "instagram$"],
     }
 
 
 def download_youtube(url: str, tmp_dir: str) -> dict:
+    validate_video_url(url)
     last_err: Exception | None = None
     for client in _PLAYER_CLIENTS:
         try:
@@ -50,8 +85,7 @@ def download_youtube(url: str, tmp_dir: str) -> dict:
         "This is common on free cloud hosts (HF Spaces, AWS, GCP). "
         "Workarounds: (1) download the video locally and upload the .mp4 file, "
         "or (2) run NeuroPulse on your own machine. "
-        f"Last error: {last_err}"
-    )
+    ) from last_err
 
 
 def process_youtube(url: str, tmp_dir: str = "/tmp") -> dict:
